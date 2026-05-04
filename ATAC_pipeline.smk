@@ -33,7 +33,8 @@ rule all:
         expand(f"{dir_out}/peaks/{{uniq_sample}}_peaks.narrowPeak", uniq_sample=UNIQ_SAMPLES),
         expand(f"{dir_out}/frip/{{uniq_sample}}_frip.txt", uniq_sample=UNIQ_SAMPLES), 
         f"{dir_out}/frip/all_samples_frip_mqc.png",
-        expand(f"{dir_out}/tss/{{uniq_sample}}_tss_enrichment.png", uniq_sample=UNIQ_SAMPLES) 
+        expand(f"{dir_out}/tss/{{uniq_sample}}_tss_enrichment.png", uniq_sample=UNIQ_SAMPLES),
+        f"{dir_out}/plots/all_samples_tss_rich.png"
 
 
 
@@ -418,7 +419,8 @@ rule tss_enrichment:
         tss = config.get("tss_bed", "hg38_tss.bed")
     output:
         matrix = f"{dir_out}/tss/{{uniq_sample}}_tss_matrix.gz",
-        plot = f"{dir_out}/tss/{{uniq_sample}}_tss_enrichment.png"
+        plot = f"{dir_out}/tss/{{uniq_sample}}_tss_enrichment.png",
+        tab = f"{dir_out}/tss/{{uniq_sample}}_tss_profile.tab"
     log:
         f"{dir_out}/logs/tss/{{uniq_sample}}.log"
     threads: 8
@@ -444,11 +446,36 @@ rule tss_enrichment:
             --plotTitle "TSS Enrichment: {wildcards.uniq_sample}" \
             --regionsLabel "TSS" \
             --plotType lines \
+            --outFileNameData {output.tab} \
             --perGroup \
             --colors green &>> {log}
         """
 
 
-# Rule 7.3.2: Prepare matrix for R
+# # Rule 7.3.2: Prepare matrix for R
+# rule tss_tab:
+#     input:
+#         matrix = f"{dir_out}/tss/{{uniq_sample}}_tss_matrix.gz"
+#     output:
+#  # Data for R
+#     log:
+#         f"{dir_out}/logs/tss/{{uniq_sample}}.tab.log"
+#     threads: 8
+#     shell:
+#         """
+#         # This converts the matrix into a simple profile table R can read
+#         plotProfile -m {input.matrix} --outFileName {output.tab} &>> {log}
+#         """
 
 # Rule 7.3.3: Plot for all the samples
+rule plot_all_tss:
+    input:
+        tabs = expand(f"{dir_out}/tss/{{uniq_sample}}_tss_profile.tab", uniq_sample=UNIQ_SAMPLES)
+    output:
+        plot = f"{dir_out}/plots/all_samples_tss_rich.png"
+    log:
+        f"{dir_out}/logs/plots/tss_rich_plot.log"
+    params:
+        tss_dir = f"{dir_out}/tss"
+    shell:
+        "Rscript plot_all_tss.R {output.plot} {params.tss_dir} &> {log}"
